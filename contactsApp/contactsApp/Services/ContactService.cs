@@ -27,11 +27,6 @@ namespace contactsApp.Services
             return contacts;
         }
 
-        public Contact GetContactById(int id)
-        {
-            return contacts.FirstOrDefault(c => c.Id == id);
-        }
-
         public void AddContact(Contact contact)
         {
             contact.Id = contacts.Count + 1;
