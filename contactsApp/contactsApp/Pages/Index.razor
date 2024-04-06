@@ -1,0 +1,289 @@
+﻿@page "/"
+@using contactsApp.Models
+@using contactsApp.Services
+@inject IJSRuntime JSRuntime
+@inject ContactService contactService
+
+<h1 style="margin-bottom: 20px;">Contact List</h1>
+<button class="btn btn-success mb-3" @onclick="AddContact">Add Contact</button>
+
+<div class="form-group" style="margin-bottom: 20px;">
+    <input type="text" class="form-control" style="width: 250px;" placeholder="Filter By..." @bind="filterText" @oninput="OnFilterTextChanged" />
+</div>
+
+<!-- Display contact list -->
+<table class="table">
+    <thead>
+        <tr>
+            <th @onclick='() => SortContacts("FirstName")' style="cursor: pointer;">
+                First Name
+                @if (sortField == "FirstName")
+                {
+                    <span>@(sortOrder == "Asc" ? "▲" : "▼")</span>
+                }
+            </th>
+            <th @onclick='() => SortContacts("LastName")' style="cursor: pointer;">
+                Last Name
+                @if (sortField == "LastName")
+                {
+                    <span>@(sortOrder == "Asc" ? "▲" : "▼")</span>
+                }
+            </th>
+            <th @onclick='() => SortContacts("Email")' style="cursor: pointer;">
+                Email
+                @if (sortField == "Email")
+                {
+                    <span>@(sortOrder == "Asc" ? "▲" : "▼")</span>
+                }
+            </th>
+            <th @onclick='() => SortContacts("PhoneNumber")' style="cursor: pointer;">
+                Phone Number
+                @if (sortField == "PhoneNumber")
+                {
+                    <span>@(sortOrder == "Asc" ? "▲" : "▼")</span>
+                }
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+
+    <tbody>
+        @foreach (var contact in filteredContacts)
+        {
+            <tr>
+                <td>@contact.FirstName</td>
+                <td>@contact.LastName</td>
+                <td>@contact.Email</td>
+                <td>@contact.PhoneNumber</td>
+                <td>
+                    <button class="btn btn-primary" @onclick="() => EditContact(contact)">Edit</button>
+                    <button class="btn btn-danger" @onclick="() => DeleteContact(contact.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal for adding/editing contact -->
+<div class="modal" tabindex="-1" role="dialog" style="@modalStyle">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@modalTitle</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="CloseModal">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="SaveContact">
+                    <div class="alert alert-danger" role="alert" style="display: @validationErrorDisplay">
+                        @validationErrorMessage
+                    </div>
+                    <div class="form-group">
+                        <label for="firstName">First Name:</label>
+                        <input type="text" class="form-control" id="firstName" @bind="currentContact.FirstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name:</label>
+                        <input type="text" class="form-control" id="lastName" @bind="currentContact.LastName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email:</label>
+                        <input type="email" class="form-control" id="email" @bind="currentContact.Email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phoneNumber">Phone Number:</label>
+                        <input type="tel" class="form-control" id="phoneNumber" @bind="currentContact.PhoneNumber" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Contact> contacts;
+    private List<Contact> filteredContacts;
+    private Contact currentContact = new Contact();
+    private bool showModal = false;
+    private string modalStyle => showModal ? "display: block;" : "display: none;";
+    private string modalTitle = "Add Contact";
+    private string validationErrorMessage = string.Empty;
+    private string validationErrorDisplay = "none";
+    private string sortField = "FirstName"; // Default sort field
+    private string sortOrder = "Asc"; // Default sort order
+    private string filterText = ""; // Text entered by the user for filtering
+
+    protected override void OnInitialized()
+    {
+        LoadContacts();
+    }
+
+    private void LoadContacts()
+    {
+        contacts = contactService.GetAllContacts().ToList();
+        filterText = ""; // Clear filter text
+        FilterContacts();
+    }
+
+    private async Task SaveContact()
+    {
+        if (!ValidateInput())
+            return;
+
+        if (currentContact.Id == 0)
+        {
+            contactService.AddContact(currentContact);
+        }
+        else
+        {
+            contactService.UpdateContact(currentContact);
+        }
+        CloseModal();
+        LoadContacts();
+    }
+
+    private void SortContacts()
+    {
+        if (sortField == "FirstName")
+        {
+            filteredContacts = sortOrder == "Asc" ?
+                filteredContacts.OrderBy(c => c.FirstName).ToList() :
+                filteredContacts.OrderByDescending(c => c.FirstName).ToList();
+        }
+        else if (sortField == "LastName")
+        {
+            filteredContacts = sortOrder == "Asc" ?
+                filteredContacts.OrderBy(c => c.LastName).ToList() :
+                filteredContacts.OrderByDescending(c => c.LastName).ToList();
+        }
+        else if (sortField == "Email")
+        {
+            filteredContacts = sortOrder == "Asc" ?
+                filteredContacts.OrderBy(c => c.Email).ToList() :
+                filteredContacts.OrderByDescending(c => c.Email).ToList();
+        }
+        else if (sortField == "PhoneNumber")
+        {
+            filteredContacts = sortOrder == "Asc" ?
+                filteredContacts.OrderBy(c => c.PhoneNumber).ToList() :
+                filteredContacts.OrderByDescending(c => c.PhoneNumber).ToList();
+        }
+    }
+
+    private void SortContacts(string field)
+    {
+        if (field == sortField)
+        {
+            sortOrder = sortOrder == "Asc" ? "Desc" : "Asc";
+        }
+        else
+        {
+            sortField = field;
+            sortOrder = "Asc";
+        }
+
+        SortContacts(); // Re-sort after changing sort field or order
+    }
+
+    private void FilterContacts()
+    {
+        filteredContacts = contacts.Where(contact =>
+            contact.FirstName.ToLower().Contains(filterText.ToLower()) ||
+            contact.LastName.ToLower().Contains(filterText.ToLower()) ||
+            contact.Email.ToLower().Contains(filterText.ToLower()) ||
+            contact.PhoneNumber.ToString().Contains(filterText.ToLower())
+        ).ToList();
+        SortContacts(); // Re-sort the filtered contacts after filtering
+    }
+
+    private bool ValidateInput()
+    {
+        if (string.IsNullOrWhiteSpace(currentContact.FirstName) ||
+            string.IsNullOrWhiteSpace(currentContact.LastName) ||
+            string.IsNullOrWhiteSpace(currentContact.Email) ||
+            string.IsNullOrWhiteSpace(currentContact.PhoneNumber.ToString()))
+        {
+            validationErrorMessage = "All fields are required.";
+            validationErrorDisplay = "block";
+            return false;
+        }
+        else if (!IsValidEmail(currentContact.Email))
+        {
+            validationErrorMessage = "Please enter a valid email address.";
+            validationErrorDisplay = "block";
+            return false;
+        }
+        else if (!IsValidPhoneNumber(currentContact.PhoneNumber.ToString()))
+        {
+            validationErrorMessage = "Please enter a valid phone number.";
+            validationErrorDisplay = "block";
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool IsValidPhoneNumber(string phoneNumber)
+    {
+        // Implement your validation logic for phone number
+        // This is a placeholder
+        return phoneNumber.All(char.IsDigit);
+    }
+
+    private async Task DeleteContact(int id)
+    {
+        if (await ShowConfirmation("Are you sure you want to delete this contact?"))
+        {
+            contactService.DeleteContact(id);
+            LoadContacts();
+        }
+    }
+
+    private async Task<bool> ShowConfirmation(string message)
+    {
+        return await JSRuntime.InvokeAsync<bool>("confirm", message);
+    }
+
+    private void EditContact(Contact contact)
+    {
+        currentContact = contact;
+        modalTitle = "Edit Contact";
+        showModal = true;
+    }
+
+    private void AddContact()
+    {
+        currentContact = new Contact();
+        modalTitle = "Add Contact";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        currentContact = new Contact();
+        modalTitle = "Add Contact";
+        showModal = false;
+    }
+
+    private async Task OnFilterTextChanged(ChangeEventArgs e)
+    {
+        filterText = e.Value.ToString();
+        FilterContacts(); // Update filtered contacts when filter text changes
+    }
+}
